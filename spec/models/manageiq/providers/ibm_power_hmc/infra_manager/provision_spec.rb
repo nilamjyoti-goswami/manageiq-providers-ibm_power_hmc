@@ -33,6 +33,29 @@ describe ManageIQ::Providers::IbmPowerHmc::InfraManager::Provision do
       expect_any_instance_of(template.class).to receive(:provision_lpar)
       prov.start_clone({})
     end
+
+    context "prepare_for_clone_task with storage overrides" do
+      before do
+        prov.options[:placement_host_name] = [host.id, host.name]
+        prov.options[:vlan]                = "lan_A"
+        prov.options[:vscsi_storage]       = "vios1:hdisk10"
+        prov.options[:vfc_storage]         = "vios1:fcs0"
+      end
+
+      it "includes vscsi_storage and vfc_storage in clone options" do
+        clone_opts = prov.prepare_for_clone_task
+        expect(clone_opts[:vscsi_storage]).to eq("vios1:hdisk10")
+        expect(clone_opts[:vfc_storage]).to eq("vios1:fcs0")
+      end
+
+      it "omits storage keys when not set" do
+        prov.options.delete(:vscsi_storage)
+        prov.options.delete(:vfc_storage)
+        clone_opts = prov.prepare_for_clone_task
+        expect(clone_opts[:vscsi_storage]).to be_nil
+        expect(clone_opts[:vfc_storage]).to be_nil
+      end
+    end
   end
 
   context "publish" do

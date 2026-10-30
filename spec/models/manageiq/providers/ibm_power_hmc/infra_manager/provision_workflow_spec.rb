@@ -43,4 +43,47 @@ describe ManageIQ::Providers::IbmPowerHmc::InfraManager::ProvisionWorkflow do
       expect(workflow.allowed_vlans).to match_array([[vlan1.name, vlan1.name]])
     end
   end
+
+  context "#ws_vm_fields storage overrides" do
+    # stub_dialog returns {:dialogs => {}} which makes get_ws_dialog_fields return nil for all
+    # tabs including :storage. Override it here to return the real storage fields so
+    # ws_storage_fields can process them.
+    let(:storage_dlg_fields) do
+    {
+      :vscsi_storage => {:data_type => :string, :display => :hide},
+      :vfc_storage   => {:data_type => :string, :display => :hide}
+    }
+  end
+
+    before do
+      allow(workflow).to receive(:get_ws_dialog_fields).and_call_original
+      allow(workflow).to receive(:get_ws_dialog_fields).with(:storage).and_return(storage_dlg_fields)
+    end
+
+    it "stores vscsi_storage from vm_fields into values" do
+      values = {}
+      workflow.ws_vm_fields(values, {"vscsi_storage" => "vios1:hdisk10"})
+      expect(values[:vscsi_storage]).to eq("vios1:hdisk10")
+    end
+
+    it "stores vfc_storage from vm_fields into values" do
+      values = {}
+      workflow.ws_vm_fields(values, {"vfc_storage" => "vios1:fcs0"})
+      expect(values[:vfc_storage]).to eq("vios1:fcs0")
+    end
+
+    it "stores both vscsi_storage and vfc_storage when both are given" do
+      values = {}
+      workflow.ws_vm_fields(values, {"vscsi_storage" => "vios1:hdisk10", "vfc_storage" => "vios1:fcs0"})
+      expect(values[:vscsi_storage]).to eq("vios1:hdisk10")
+      expect(values[:vfc_storage]).to eq("vios1:fcs0")
+    end
+
+    it "leaves values unchanged when no storage key is given" do
+      values = {}
+      workflow.ws_vm_fields(values, {"vm_name" => "test"})
+      expect(values[:vscsi_storage]).to be_nil
+      expect(values[:vfc_storage]).to be_nil
+    end
+  end
 end
