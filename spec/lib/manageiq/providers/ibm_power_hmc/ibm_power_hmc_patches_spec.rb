@@ -123,6 +123,14 @@ describe IbmPowerHmc::PartitionTemplate do
   end
 
   describe "adapters with missing values" do
+    it "refuses a vSCSI adapter without a VIOS or a physical volume instead of emitting an empty element" do
+      tmpl = build_template
+      expect { tmpl.vscsi = [{:physvol => "hdisk4"}] }.to raise_error(ArgumentError, /vios/)
+      expect { tmpl.vscsi = [{:vios => "vios1"}] }.to raise_error(ArgumentError, /physvol/)
+      expect { tmpl.vscsi = [{:vios => " ", :physvol => "hdisk4"}] }.to raise_error(ArgumentError, /vios/)
+      expect(lpar_children(tmpl)).to eq(%w[partitionName clientNetworkAdapters suspendEnable kvmCapable])
+    end
+
     it "refuses a vFC adapter without a location code instead of emitting an empty element" do
       tmpl = build_template
       expect { tmpl.vfc = [{:vios => "vios2", :port => "fcs0"}] }.to raise_error(ArgumentError, /location/)

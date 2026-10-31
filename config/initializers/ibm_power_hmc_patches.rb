@@ -67,14 +67,16 @@ module IbmPowerHmc
     # tested with, and no caller supplies :name today.
     #
     # @param list [Array<Hash>] per adapter:
-    #   :vios     - VIOS partition name (connectingPartitionName)
-    #   :physvol  - physical volume name on that VIOS, e.g. "hdisk4"
+    #   :vios     - VIOS partition name (connectingPartitionName), required
+    #   :physvol  - physical volume name on that VIOS, e.g. "hdisk4", required
     #   :vtd_name - optional virtual target device name
     #   :name     - optional adapter name (the <name/> element is emitted either way)
+    # @raise [ArgumentError] when :vios or :physvol is missing or blank
     def vscsi=(list = [])
       version = lpar_schema_version
       adaps = k2_new('virtualSCSIClientAdapters', version)
       (list || []).each do |vscsi|
+        require_keys!(vscsi, :vios, :physvol)
         v = k2_add(adaps, 'VirtualSCSIClientAdapter', version)
         v.add_element('name').text = vscsi[:name]
         v.add_element('PhyscalVolumeVTDName').text = vscsi[:vtd_name] if vscsi[:vtd_name]
