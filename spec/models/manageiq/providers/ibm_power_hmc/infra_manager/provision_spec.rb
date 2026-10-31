@@ -42,18 +42,30 @@ describe ManageIQ::Providers::IbmPowerHmc::InfraManager::Provision do
         prov.options[:vfc_storage]         = "vios1:fcs0"
       end
 
-      it "includes vscsi_storage and vfc_storage in clone options" do
+      it "includes the host, vlan and storage overrides in clone options" do
         clone_opts = prov.prepare_for_clone_task
-        expect(clone_opts[:vscsi_storage]).to eq("vios1:hdisk10")
-        expect(clone_opts[:vfc_storage]).to eq("vios1:fcs0")
+        expect(clone_opts).to include(
+          :host_id       => host.id,
+          :vlan          => "lan_A",
+          :vscsi_storage => "vios1:hdisk10",
+          :vfc_storage   => "vios1:fcs0"
+        )
       end
 
-      it "omits storage keys when not set" do
+      it "sets the storage keys to nil when they are not in the options" do
         prov.options.delete(:vscsi_storage)
         prov.options.delete(:vfc_storage)
         clone_opts = prov.prepare_for_clone_task
-        expect(clone_opts[:vscsi_storage]).to be_nil
-        expect(clone_opts[:vfc_storage]).to be_nil
+        expect(clone_opts).to include(:vscsi_storage => nil, :vfc_storage => nil)
+      end
+
+      it "logs the storage overrides" do
+        clone_opts = prov.prepare_for_clone_task
+        allow($ibm_power_hmc_log).to receive(:info)
+        prov.log_clone_options(clone_opts)
+
+        expect($ibm_power_hmc_log).to have_received(:info).with(/vSCSI Storage Override:\s+\[vios1:hdisk10\]/)
+        expect($ibm_power_hmc_log).to have_received(:info).with(/vFC Storage Override:\s+\[vios1:fcs0\]/)
       end
     end
   end

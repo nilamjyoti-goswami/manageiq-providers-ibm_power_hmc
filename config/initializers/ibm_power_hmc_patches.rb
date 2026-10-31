@@ -62,15 +62,19 @@ module IbmPowerHmc
     # "PhyscalVolumeVTDName" is spelled exactly as IBM spells it in the schema
     # (missing the "i" in Physical). Do not correct it.
     #
+    # A nil list is treated as empty. <name/> is emitted even when :name is not
+    # given (it is then empty): that is the XML the live-HMC vSCSI deploys were
+    # tested with, and no caller supplies :name today.
+    #
     # @param list [Array<Hash>] per adapter:
     #   :vios     - VIOS partition name (connectingPartitionName)
     #   :physvol  - physical volume name on that VIOS, e.g. "hdisk4"
     #   :vtd_name - optional virtual target device name
-    #   :name     - optional adapter name
+    #   :name     - optional adapter name (the <name/> element is emitted either way)
     def vscsi=(list = [])
       version = lpar_schema_version
       adaps = k2_new('virtualSCSIClientAdapters', version)
-      list.each do |vscsi|
+      (list || []).each do |vscsi|
         v = k2_add(adaps, 'VirtualSCSIClientAdapter', version)
         v.add_element('name').text = vscsi[:name]
         v.add_element('PhyscalVolumeVTDName').text = vscsi[:vtd_name] if vscsi[:vtd_name]
@@ -90,14 +94,18 @@ module IbmPowerHmc
     # Deploy-time form produced by the HMC wizard:
     #   Metadata, locationCode, connectingPartitionName, portName
     #
-    # @param list [Array<Hash>] per adapter:
+    # A nil list is treated as empty.
+    #
+    # @param list [Array<Hash>] per adapter (all three keys are required):
     #   :vios     - VIOS partition name (connectingPartitionName)
     #   :port     - FC port on that VIOS, e.g. "fcs0"
     #   :location - that port's location code, e.g. "U78DA.ND0.WZS03EJ-P0-C1-T0"
+    # @raise [ArgumentError] when a required key is missing or blank
     def vfc=(list = [])
       version = lpar_schema_version
       adaps = k2_new('virtualFibreChannelClientAdapters', version)
-      list.each do |vfc|
+      (list || []).each do |vfc|
+        require_keys!(vfc, :vios, :port, :location)
         v = k2_add(adaps, 'VirtualFibreChannelClientAdapter', version)
         v.add_element('locationCode').text            = vfc[:location]
         v.add_element('connectingPartitionName').text = vfc[:vios]
@@ -107,12 +115,14 @@ module IbmPowerHmc
     end
 
     ##
-    # Set the client network adapters (VLANs).
-    # @param list [Array<Hash>] per VLAN: :name, :vlan_id, :switch.
+    # Set the client network adapters (VLANs). A nil list is treated as empty.
+    # @param list [Array<Hash>] per VLAN (all three keys are required): :name, :vlan_id, :switch.
+    # @raise [ArgumentError] when a required key is missing or blank
     def vlans=(list = [])
       version = lpar_schema_version
       adaps = k2_new('clientNetworkAdapters', version)
-      list.each do |vlan|
+      (list || []).each do |vlan|
+        require_keys!(vlan, :name, :vlan_id, :switch)
         cna  = k2_add(adaps, 'ClientNetworkAdapter', version)
         cvns = k2_add(cna, 'clientVirtualNetworks', version)
         cvn  = k2_add(cvns, 'ClientVirtualNetwork', version)
@@ -124,6 +134,12 @@ module IbmPowerHmc
     end
 
     private
+
+    # Refuse to build an adapter with an empty element the HMC would reject (REST0001).
+    def require_keys!(hash, *keys)
+      missing = keys.select { |key| hash[key].to_s.strip.empty? }
+      raise ArgumentError, "missing #{missing.join(', ')} in #{hash.inspect}" unless missing.empty?
+    end
 
     # The schemaVersion this template actually uses; nil means emit no attribute.
     def lpar_schema_version
